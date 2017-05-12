@@ -1,0 +1,2 @@
+# blogassets
+my blog assets
