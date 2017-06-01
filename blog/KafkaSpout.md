@@ -6,15 +6,27 @@ tags: PubSub
 
 ## config
 
+### Topology config
+
+- TOPOLOGY_WORKERS
+  - 整个cluster的java进程数
+  - 例如，设置成25，parallelism=150，那么每个worker进程会创建150/25=6个线程执行task
+- TOPOLOGY_ACKER_EXECUTORS = 20
+  - 不设或者为null，it=TOPOLOGY_WORKERS，即one acker task per worker
+  - 设置为0，表示turn off ack/reliability
+- TOPOLOGY_MAX_SPOUT_PENDING = 5000 
+  - max in-flight(not ack or fail) spout tuples on a single spout task at once
+  - 如果不指定，默认是1
+- TOPOLOGY_BACKPRESSURE_ENABLE = false
+- TOPOLOGY_MESSAGE_TIMEOUT_SECS     
+  30s by default
+
+### KafkaSpout config
+
 ```
 fetchSizeBytes  = 1024 * 1024 * 2 // 1048576=1M by default FetchRequest
-fetchMaxWait = 10000              // by default
-forceFromStart = false
-
-Config.TOPOLOGY_ACKERS                   // if 0, acking disabled
-Config.TOPOLOGY-ACKER-EXECUTORS   = 20
-Config.TOPOLOGY_MAX_SPOUT_PENDING = 5000 // max in-flight tuples per spout
-Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS     // 30s by default
+fetchMaxWait    = 10000           // by default
+forceFromStart  = false
 ```
 
 ## emit/ack/fail flow
@@ -31,7 +43,11 @@ class PartitionManager {
         // BasicBoltExecutor.execute会通过template method自动执行_collector.getOutputter().ack(input)
         // 即KafkaSpout.ack -> PartitionManager.ack
         collector.emit(tup, new PartitionManager.KafkaMessageId(this._partition, toEmit.offset));
+
+        // 该tuple处于pending state
     }
+
+    // Note: a tuple will be acked or failed by the exact same Spout task that created it
 
     func ack(Long offset) {
         this._pending.remove(offset)
@@ -39,6 +55,7 @@ class PartitionManager {
 
     func fail(Long offset) {
         this.failed.add(offset);
+        // kafka consumer会reset offset to the failed msg，重新消费
     }
 }
 
@@ -61,3 +78,15 @@ class BasicBoltExecutor {
 }
 ```
 
+## spout throttle
+
+[1.0.0](http://storm.apache.org/2016/04/12/storm100-released.html)之前，只能用TOPOLOGY_MAX_SPOUT_PENDING控制
+但这个参数很难控制，它有一些与其他参数配合使用才能生效的机制，而且如果使用Trident语义又完全不同
+[1.0.0](http://storm.apache.org/2016/04/12/storm100-released.html)之后，可以通过backpressure
+![backpressure](https://github.com/funkygao/blogassets/blob/master/img/backpressure.png?raw=true)
+
+## References
+
+http://www.michael-noll.com/blog/2013/06/21/understanding-storm-internal-message-buffers/
+http://jobs.one2team.com/apache-storms/
+http://woodding2008.iteye.com/blog/2335673
