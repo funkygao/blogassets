@@ -85,8 +85,18 @@ class BasicBoltExecutor {
 [1.0.0](http://storm.apache.org/2016/04/12/storm100-released.html)之后，可以通过backpressure
 ![backpressure](https://github.com/funkygao/blogassets/blob/master/img/backpressure.png?raw=true)
 
+## Storm messaging
+
+- intra-worker
+  Disruptor
+- inter-worker
+  0MQ/Netty
+
+![storm messaing](https://github.com/funkygao/blogassets/blob/master/img/storm-internal-message-queues.png?raw=true)
+
 ## References
 
 http://www.michael-noll.com/blog/2013/06/21/understanding-storm-internal-message-buffers/
 http://jobs.one2team.com/apache-storms/
 http://woodding2008.iteye.com/blog/2335673
+https://community.hortonworks.com/articles/550/unofficial-storm-and-kafka-best-practices-guide.html
