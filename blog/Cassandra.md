@@ -8,6 +8,9 @@ tags: storage
 
 Cassandra 项目诞生于 Facebook，后来团队有人跳到 Amazon 做了另外一个 NoSQL 数据库 DynamoDB。
 
+Dynamo论文发表于2007年，用于shopping cart
+Cassandra在2008年被facebook开源，用于inbox search
+
 ### Features
 
 - CQL(Cassandra Query Language)
