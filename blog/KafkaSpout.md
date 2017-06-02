@@ -9,14 +9,20 @@ tags: PubSub
 ### Topology config
 
 - TOPOLOGY_WORKERS
-  - 整个cluster的java进程数
+  - 整个topology在所有节点上的java进程总数
   - 例如，设置成25，parallelism=150，那么每个worker进程会创建150/25=6个线程执行task
 - TOPOLOGY_ACKER_EXECUTORS = 20
   - 不设或者为null，it=TOPOLOGY_WORKERS，即one acker task per worker
   - 设置为0，表示turn off ack/reliability
 - TOPOLOGY_MAX_SPOUT_PENDING = 5000 
+  ```
+  (defn executor-max-spout-pending [storm-conf num-tasks]
+    (let [p (storm-conf TOPOLOGY-MAX-SPOUT-PENDING)]
+      (if p (* p num-tasks))))
+  ```
   - max in-flight(not ack or fail) spout tuples on a single spout task at once
   - 如果不指定，默认是1
+
 - TOPOLOGY_BACKPRESSURE_ENABLE = false
 - TOPOLOGY_MESSAGE_TIMEOUT_SECS     
   30s by default
@@ -37,6 +43,12 @@ class PartitionManager {
     LinkedList<MessageAndRealOffset> _waitingToEmit = new LinkedList();
 
     func EmitState next(SpoutOutputCollector collector) {
+        if (this._waitingToEmit.isEmpty()) {
+            // 如果内存里数据都发出，就调用kafka consumer一次性批量填充内存_waitingToEmit
+            // 填充时，如果发现failed里有东西，那么就从head of failed(offset) FetchRequest: 重发机制
+            this.fill();
+        }
+
         // 从LinkedList _waitingToEmit里取一条消息
         MessageAndRealOffset toEmit = (MessageAndRealOffset)this._waitingToEmit.pollFirst();
         // emit时指定了messageID
@@ -77,6 +89,24 @@ class BasicBoltExecutor {
     }
 }
 ```
+
+### Bolt ack
+
+KafkaSpout产生的每个tuple，Bolt必须进行ack，否则30s后KafkaSpout会认为emitted tuple tree not fully processed，进行重发
+```
+class MyBolt {
+    public void execute(Tuple tuple) {
+        _collector.emit(new Values(foo, bar))
+        _collector.ack(tuple)
+    }
+}
+```
+
+### OOM
+
+如果消息处理一直不ack，累计的unacked msg越来越多，会不会OOM?
+NO
+KafkaSpout只保留offset，不会保存每条emitted but no ack/fail msg
 
 ## spout throttle
 
