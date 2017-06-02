@@ -99,4 +99,3 @@ class BasicBoltExecutor {
 http://www.michael-noll.com/blog/2013/06/21/understanding-storm-internal-message-buffers/
 http://jobs.one2team.com/apache-storms/
 http://woodding2008.iteye.com/blog/2335673
-https://community.hortonworks.com/articles/550/unofficial-storm-and-kafka-best-practices-guide.html

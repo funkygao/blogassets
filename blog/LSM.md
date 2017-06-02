@@ -43,7 +43,7 @@ for level:=0; level<=6; level++ {
 主流SSD，例如[Samsung 960 Pro](http://www.anandtech.com/show/10754/samsung-960-pro-ssd-review)，可以提供440K/s random read
 with block size=4KB
 
-LSM是为传统硬盘设计的，在SSD下，可以做优化
+LSM是为传统硬盘设计的，在SSD下，可以做优化，不必过分担心随机读
 
 ## 优化
 

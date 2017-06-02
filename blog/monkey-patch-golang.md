@@ -1,6 +1,6 @@
 ---
-title: Monkey Patch for GO
-date: 2017-05-12 07:58:30
+title: monkey patch golang
+date: 2017-06-02 08:08:25
 tags: hacking
 ---
 
