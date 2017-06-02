@@ -64,6 +64,16 @@ rollback;
 
 如果要解决这个问题，需要应用层进行控制
 
+另外一个例子
+```
+国家规定一个家庭最多养3只宠物(constraint)，Alice和Bob是一家人，他们现在有dog(1)+cat(1)
+如果并发地，Alice再买一只猫，而Bob再买一只狗，这2个事务就会write skew
+因为repeatable read：一个事务提交之后才visible by other txn
+TxnAlice      TxnBob
+cat=cat+1     dog=dog+1
+这2个事务都成功了，但却破坏了constraint
+```
+
 ## 锁
 
 RR隔离级别下，普通select不加锁，使用MVCC进行一致性读取，即snapshot read
