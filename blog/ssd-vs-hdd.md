@@ -1,7 +1,7 @@
 ---
 title: SSD vs HDD
 date: 2017-06-01 11:27:37
-tags: ops
+tags: architecture
 ---
 
 http://www.pcgamer.com/hard-drive-vs-ssd-performance/2/
