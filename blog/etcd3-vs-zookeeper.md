@@ -36,6 +36,7 @@ tags: 一致性
   - streaming watch
   - 支持index参数，不会lose event
   - recursive
+- off-heap
 - incremental snapshot
 
 ## zk独有的特性
@@ -43,6 +44,7 @@ tags: 一致性
 - ephemeral znode
 - non-blocking full fuzzy snapshot
 - key支持在N Millions
+- on-heap
 
 ## etcd2
 
