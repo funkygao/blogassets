@@ -43,5 +43,3 @@ clock(1.2) = 1.45 + 0.1 = 1.55
 
 RTT是个经验值，根据大量的trace后稳定下来: 使用最小值
 ```
-
-![global clock](https://github.com/funkygao/blogassets/blob/master/img/the-mystery-machine.png?raw=true)

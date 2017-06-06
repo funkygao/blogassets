@@ -9,3 +9,7 @@ NATS = Not Another Tibco Server
 
 协议类似redis
 持久化通过上层的NATS Streaming完成
+
+竞品是0mq/nanomsg/aeron
+
+https://github.com/real-logic/Aeron
