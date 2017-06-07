@@ -145,7 +145,8 @@ Watcher只会告诉客户端发生了什么类型的事件，而不会说明事�
 但最新的数据是什么，不在event里，而需要client主动重新去get
 
 Watch的通知，由WatchManager完成，它先从内存里删除这个watcher，然后回调watcher.process
-后者在NIOServerCnxn
+后者在NIOServerCnxn，即watches are sent asynchronously to watchers(client).
+But ZooKeeper guarantees that a client will see a watch event for a znode it is watching before seeing the new data that corresponds to that znode. 
 
 ```
 class WatchManager {
@@ -402,4 +403,6 @@ for i.am.looking {
 
 https://issues.apache.org/jira/browse/ZOOKEEPER-1813
 https://issues.apache.org/jira/browse/ZOOKEEPER-417
+https://issues.apache.org/jira/browse/ZOOKEEPER-1674
+https://issues.apache.org/jira/browse/ZOOKEEPER-1642
 http://blog.csdn.net/pwlazy/article/details/8080626
