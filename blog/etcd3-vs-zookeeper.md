@@ -37,12 +37,14 @@ tags: 一致性
   - 支持index参数，不会lose event
   - recursive
 - off-heap
+  内存中只保留index，大部分数据通过mmap映射到boltdb file
 - incremental snapshot
 
 ## zk独有的特性
 
 - ephemeral znode
 - non-blocking full fuzzy snapshot
+  Too busy to snap, skipping
 - key支持在N Millions
 - on-heap
 
@@ -61,3 +63,7 @@ etcd2 10GB
 zk    2.4GB
 etcd3 0.8GB
 ```
+
+## References
+
+https://coreos.com/blog/performance-of-etcd.html
