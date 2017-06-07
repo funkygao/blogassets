@@ -261,6 +261,47 @@ func initializeNextSession(id=1) {
 
 后面的session id就是这个种子基础上 increment by 1
 
+## Snapshot
+
+dataLogDir(txn log) and dataDir(snapshot) should be placed in 2 disk devices
+
+takeSnapshot的时机：
+- System.getProperty("zookeeper.snapCount"), 默认值100,000
+- takeSnapshot的时间在50,000 ~ 100,0000 之间的随机值
+- proposal数量超过snapCount+随机数
+  - roll txn log
+  - 创建一个线程，异步执行takeSnapshot。但前面的takeSnapshot线程未完成，则放弃
+    Too busy to snap, skipping
+
+```
+Request si = getRequest()
+if (zks.getZKDatabase().append(si)) { // txn log ok
+    logCount++;
+    if (logCount > (snapCount / 2 + randRoll)) {
+        randRoll = r.nextInt(snapCount/2); // 为了防止集群内所有节点同时takeSnapshot加入随机
+        zks.getZKDatabase().rollLog(); // txn log will roll
+        if (snapInProcess != null && snapInProcess.isAlive()) {
+            LOG.warn("Too busy to snap, skipping");
+        } else {
+            snapInProcess = new Thread("Snapshot Thread") {
+                public void run() {
+                    try {
+                        zks.takeSnapshot();
+                    } catch(Exception e) {
+                        LOG.warn("Unexpected exception", e);
+                    }
+                }
+            };
+            snapInProcess.start();
+        }
+        logCount = 0;
+    }
+}
+
+```
+
+如果txn log和snapshot处于同一块硬盘，异步的snapshot可能会block txn log，连锁反应就是把proposal阻塞，进而造成follower重新选举
+
 ## Edge cases
 
 ### leader election
