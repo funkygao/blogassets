@@ -145,7 +145,8 @@ Watcher只会告诉客户端发生了什么类型的事件，而不会说明事�
 但最新的数据是什么，不在event里，而需要client主动重新去get
 
 Watch的通知，由WatchManager完成，它先从内存里删除这个watcher，然后回调watcher.process
-后者在NIOServerCnxn
+后者在NIOServerCnxn，即watches are sent asynchronously to watchers(client).
+But ZooKeeper guarantees that a client will see a watch event for a znode it is watching before seeing the new data that corresponds to that znode. 
 
 ```
 class WatchManager {
@@ -261,6 +262,64 @@ func initializeNextSession(id=1) {
 
 后面的session id就是这个种子基础上 increment by 1
 
+## Snapshot
+
+dataLogDir(txn log) and dataDir(snapshot) should be placed in 2 disk devices
+如果txn log和snapshot处于同一块硬盘，异步的snapshot可能会block txn log，连锁反应就是把proposal阻塞，进而造成follower重新选举
+
+### when
+- System.getProperty("zookeeper.snapCount"), 默认值100,000
+- takeSnapshot的时间在50,000 ~ 100,0000 之间的随机值
+- txn数量超过snapCount+随机数
+  - roll txn log
+  - 创建一个线程，异步执行takeSnapshot。但前面的takeSnapshot线程未完成，则放弃
+    Too busy to snap, skipping
+
+```
+Request si = getRequest()
+if (zks.getZKDatabase().append(si)) { // txn log ok
+    logCount++; // logCount就是txn的数量
+    if (logCount > (snapCount / 2 + randRoll)) {
+        randRoll = r.nextInt(snapCount/2); // 为了防止集群内所有节点同时takeSnapshot加入随机
+        zks.getZKDatabase().rollLog(); // txn log will roll
+        if (snapInProcess != null && snapInProcess.isAlive()) {
+            LOG.warn("Too busy to snap, skipping");
+        } else {
+            snapInProcess = new Thread("Snapshot Thread") {
+                public void run() {
+                    try {
+                        zks.takeSnapshot();
+                    } catch(Exception e) {
+                        LOG.warn("Unexpected exception", e);
+                    }
+                }
+            };
+            snapInProcess.start();
+        }
+        logCount = 0;
+    }
+}
+```
+
+### size
+
+每个znode meta data至少76+path+data，如果1M znodes，平均size(path+data)=100，那么snapshot文件长度至少200MB
+我的一个生产环境zk，znode 3万，snapshot文件15MB；即，如果300万个znodes，那么snapshot文件将是1.5GB
+
+```
+path(len4, path)
+node
+  data(len4, data)
+  acl8
+  meta60
+    czxid8, mzxid8, ctime8, mtime8, version4, cversion4, aversion4, ephemeralOwner8, pzxid8 
+
+```
+
+### checksum
+
+Adler32
+
 ## Edge cases
 
 ### leader election
@@ -344,3 +403,6 @@ for i.am.looking {
 
 https://issues.apache.org/jira/browse/ZOOKEEPER-1813
 https://issues.apache.org/jira/browse/ZOOKEEPER-417
+https://issues.apache.org/jira/browse/ZOOKEEPER-1674
+https://issues.apache.org/jira/browse/ZOOKEEPER-1642
+http://blog.csdn.net/pwlazy/article/details/8080626
