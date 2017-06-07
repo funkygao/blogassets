@@ -264,8 +264,9 @@ func initializeNextSession(id=1) {
 ## Snapshot
 
 dataLogDir(txn log) and dataDir(snapshot) should be placed in 2 disk devices
+如果txn log和snapshot处于同一块硬盘，异步的snapshot可能会block txn log，连锁反应就是把proposal阻塞，进而造成follower重新选举
 
-takeSnapshot的时机：
+### when
 - System.getProperty("zookeeper.snapCount"), 默认值100,000
 - takeSnapshot的时间在50,000 ~ 100,0000 之间的随机值
 - txn数量超过snapCount+随机数
@@ -297,10 +298,26 @@ if (zks.getZKDatabase().append(si)) { // txn log ok
         logCount = 0;
     }
 }
+```
+
+### size
+
+每个znode meta data至少76+path+data，如果1M znodes，平均size(path+data)=100，那么snapshot文件长度至少200MB
+我的一个生产环境zk，znode 3万，snapshot文件15MB；即，如果300万个znodes，那么snapshot文件将是1.5GB
+
+```
+path(len4, path)
+node
+  data(len4, data)
+  acl8
+  meta60
+    czxid8, mzxid8, ctime8, mtime8, version4, cversion4, aversion4, ephemeralOwner8, pzxid8 
 
 ```
 
-如果txn log和snapshot处于同一块硬盘，异步的snapshot可能会block txn log，连锁反应就是把proposal阻塞，进而造成follower重新选举
+### checksum
+
+Adler32
 
 ## Edge cases
 
@@ -385,3 +402,4 @@ for i.am.looking {
 
 https://issues.apache.org/jira/browse/ZOOKEEPER-1813
 https://issues.apache.org/jira/browse/ZOOKEEPER-417
+http://blog.csdn.net/pwlazy/article/details/8080626
