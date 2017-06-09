@@ -36,6 +36,7 @@ transport.tcp.port: 9300
 - translog(WAL)
   - 每个shard一个translog，即每个index一个translog
   - 它提供实时的CRUD by docID，先translog然后再segments
+  - 默认5s刷盘
   - translog存放在path.data，可以stripe，但存在与segments竞争资源问题
     ```
     $ls nodes/0/indices/twitter/1/
@@ -62,11 +63,15 @@ transport.tcp.port: 9300
   - 把还没有fsync的segments，一一fsync
   - ![commit](https://github.com/funkygao/blogassets/blob/master/img/elasticsearch-internals.png?raw=true)
 - merge
+  - ![merge](https://github.com/funkygao/blogassets/blob/master/img/elamerge.png?raw=true)
+  - policy
+    - tiered(default)
+    - log_byte_size
+    - log_doc
   - 可能把committed和uncommitted segments一起merge
   - 异步，不影响indexing/query
   - 合并后，fsync the merged big segment，之前的small segments被删除
   - ES内部有throttle机制控制merge进度，防止它占用过多资源: 20MB/s
-  - ![merge](https://github.com/funkygao/blogassets/blob/master/img/elamerge.png?raw=true)
 - update
   delete, then insert
 
@@ -122,7 +127,7 @@ node1, node2(master), node3
 
 ### Consistency
 
-- quorum(by default)
+- quorum(default)
 - one
 - all
 
