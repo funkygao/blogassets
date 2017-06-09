@@ -5,3 +5,4 @@ tags: storage
 ---
 
 http://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/
+http://www.open-open.com/lib/view/open1423106687217.html
