@@ -8,8 +8,10 @@ tags: storage
 
 ### Storage Model
 
-一种特殊的LSM Tree，只是没有多level
+一种特殊的LSM Tree
 ```
+ES         LSM
+========   ==========
 translog   WAL
 buffer     MemTable
 segment    SSTable
@@ -24,9 +26,7 @@ node.data: true
 index.number_of_shards: 5
 index.number_of_replicas: 1
 path.data: /path/to/data1,/path/to/data2
-bootstrap.mlockall: true
 http.max_content_length: 100mb
-transport.tcp.port: 9300
 ```
 
 ## Indexing
@@ -57,6 +57,7 @@ transport.tcp.port: 9300
   - Any docs in the in-memory buffer are written to a new segment
   - The buffer is cleared
   - A commit point is written to disk
+    commit point is a file that contains list of segments ready for search
   - The filesystem cache is flushed with an fsync
   - The old translog is deleted
 - commit
@@ -73,7 +74,7 @@ transport.tcp.port: 9300
   - 合并后，fsync the merged big segment，之前的small segments被删除
   - ES内部有throttle机制控制merge进度，防止它占用过多资源: 20MB/s
 - update
-  delete, then insert
+  delete, then insert。mysql内部的变长字段update也是这么实现的
 
 ## Query
 
@@ -93,6 +94,8 @@ for s in range segments {
 search(from=50000, size=10)，那么每个shard会创建一个优先队列，队列大小=50010，从每个segment里取结果，直到填满
 而coordinating node需要创建的优先队列 number_of_shards * 50010
 
+利用scan+scroll可以批量取数据(sorting disabled)，例如在reindex时使用
+
 ## Cluster
 
 ### Intro
@@ -101,25 +104,51 @@ search(from=50000, size=10)，那么每个shard会创建一个优先队列，队
 shard = MurMurHash3(document_id) % (num_of_primary_shards)
 
 Node1节点用数据的_id计算出数据应该存储在shard0上，通过cluster state信息发现shard0的主分片在Node3节点上，Node1转发请求数据给Node3,Node3完成数据的索引
-Node3并行转发数据给分配有shard0的副本分片Node1和Node2上。当收到任一节点汇报副本分片数据写入成功以后，Node3即返回给初始的接受节点Node1，宣布数据写入成功。Node1成功返回给客户端。
+Node3并行转发(PUSH model replication)数据给分配有shard0的副本分片Node1和Node2上。当收到任一节点汇报副本分片数据写入成功以后，Node3即返回给初始的接受节点Node1，宣布数据写入成功。Node1成功返回给客户端。
 
-### Consensus
+### Scale
 
-zen discovery(unicast/multicast)，存在脑裂问题，没有去解决，而是通过3台专用master机器，优化master逻辑，减少由于no reponse造成的partition可能性
+![scale up](https://github.com/funkygao/blogassets/blob/master/img/scalees.png?raw=true)
+
+### Rebalance
+
 ```
-node1, node2(master), node3
-2-3不通，但1-2, 2-3都通，minimum_master_nodes=2，node3会重新选举自己成为master，而1同意了，2个master
+// 查看shard分布情况
+curl -XGET http://localhost:9200/_cat/shards
+
+// 手工rebalance
+curl-XPOST 'http://localhost:9200/_cluster/reroute' -d'{
+    "commands": [
+        {
+            "move": {
+                "index": "mylog-2016-02-08",
+                "shard": 6,
+                "from_node": "192.168.0.1",
+                "to_node": "192.168.0.2"
+            }
+        }
+    ]}'
 ```
 
-默认ping_interval=1s ping_timeout=3s join_timeout=20*ping_interval
+### 新节点加入过程
 
-没有使用Paxos(zk)的原因:
->This, to me, is at the heart of our approach to resiliency. 
->Zookeeper, an excellent product, is a separate external system, with its own communication layer. 
->By having the discovery module in Elasticsearch using its own infrastructure, specifically the communication layer, it means that we can use the “liveness” of the cluster to assess its health. 
->Operations happen on the cluster all the time, reads, writes, cluster state updates.
->By tying our assessment of health to the same infrastructure, we can actually build a more reliable more responsive system. 
->We are not saying that we won’t have a formal Zookeeper integration for those who already use Zookeeper elsewhere. But this will be next to a hardened, built in, discovery module.
+```
+// get master node and eligible master nodes
+for host = range discovery.zen.ping.unicast.hosts {
+    PingResponse = ZendPing.send(host)
+}
+
+send('internal:discovery/zen/join') to master
+master.reply('internal:discovery/zen/join/validate')
+// 2PC join
+master.update(ClusterState) and broadcast to all nodes, and wait for minimum_master_nodes ack
+ClusterState change committed and confirmation sent
+```
+
+### Master fault detection
+
+默认，每个node每1s ping master，ping_timeout=30s，ping_retries=3
+失败后，会触发new master election
 
 ### Concurrency
 
@@ -131,9 +160,264 @@ node1, node2(master), node3
 - one
 - all
 
-### Replication
+### Shard 
 
-PUSH model
+#### allocation
+
+```
+weightindex(node, index) = indexBalance * (node.numShards(index) – avgShardsPerNode(index))
+weightnode(node, index) = shardBalance * (node.numShards() – avgShardsPerNode)
+weightprimary(node, index) = primaryBalance * (node.numPrimaries() – avgPrimariesPerNode)
+weight(node, index) = weightindex(node, index) + weightnode(node, index) + weightprimary(node, index)
+```
+如果计算最后的weight(node, index)大于threshold， 就会发生shard迁移。
+
+在一个已经创立的集群里，shard的分布总是均匀的。但是当你扩容节点的时候，你会发现，它总是先移动replica shard到新节点。
+这样就导致新节点全部分布的全是副本，主shard几乎全留在了老的节点上。
+
+cluster.routing.allocation.balance参数，比较难找到合适的比例。
+
+#### 初始化
+
+```
+master通过ClusterState分配一个新shard
+node初始化一个空shard，并notify master
+master mark the shard as started
+if this is the first shard with a specific id, it is marked as primary
+```
+
+### Consensus
+
+zen discovery(unicast/multicast)，存在脑裂问题，没有去解决，而是通过3台专用master机器，优化master逻辑，减少由于no reponse造成的partition可能性
+```
+node1, node2(master), node3
+2-3不通，但1-2, 2-3都通，minimum_master_nodes=2，node3会重新选举自己成为master，而1同意了，2个master
+```
+
+默认ping_interval=1s ping_timeout=3s ping_retries=3 join_timeout=20*ping_interval
+
+没有使用Paxos(zk)的原因:
+>This, to me, is at the heart of our approach to resiliency. 
+>Zookeeper, an excellent product, is a separate external system, with its own communication layer. 
+>By having the discovery module in Elasticsearch using its own infrastructure, specifically the communication layer, it means that we can use the “liveness” of the cluster to assess its health. 
+>Operations happen on the cluster all the time, reads, writes, cluster state updates.
+>By tying our assessment of health to the same infrastructure, we can actually build a more reliable more responsive system. 
+>We are not saying that we won’t have a formal Zookeeper integration for those who already use Zookeeper elsewhere. But this will be next to a hardened, built in, discovery module.
+
+#### ClusterState
+
+master负责更改，并广播到机器的每个节点，每个节点本地保存
+如果有很多index，很多fields，很多shard，很多node，那么它会很大，因此它提供了增量广播机制和压缩
+
+```
+{
+  "cluster_name" : "elasticsearch",
+  "version" : 11,
+  "master_node" : "-mq1SRuuQoeEq-3S8SdHqw",
+  "blocks" : { },
+  "nodes" : {
+    "sIh5gQcFThCcz3SO6txvvQ" : {
+      "name" : "Max",
+      "transport_address" : "inet[/162.245.23.194:9301]",
+      "attributes" : { }
+    },
+    "-mq1SRuuQoeEq-3S8SdHqw" : {
+      "name" : "Llyron",
+      "transport_address" : "inet[/162.245.23.194:9300]",
+      "attributes" : { }
+    }
+  },
+  "metadata" : {
+    "templates" : { },
+    "indices" : {
+      "blog" : {
+        "state" : "open",
+        "settings" : {
+          "index" : {
+            "uuid" : "UQMz5vbXSBqFU_8U3u4gYQ",
+            "number_of_replicas" : "1",
+            "number_of_shards" : "5",
+            "version" : {
+              "created" : "1030099"
+            }
+          }
+        },
+        "mappings" : {
+          "user" : {
+            "properties" : {
+              "name" : {
+                "type" : "string"
+              }
+            }
+          }
+        },
+        "aliases" : [ ]
+      }
+    }
+  },
+  "routing_table" : {
+    "indices" : {
+      "blog" : {
+        "shards" : {
+          "4" : [ {
+            "state" : "STARTED",
+            "primary" : true,
+            "node" : "sIh5gQcFThCcz3SO6txvvQ",
+            "relocating_node" : null,
+            "shard" : 4,
+            "index" : "blog"
+          }, {
+            "state" : "STARTED",
+            "primary" : false,
+            "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+            "relocating_node" : null,
+            "shard" : 4,
+            "index" : "blog"
+          } ],
+          "0" : [ {
+            "state" : "STARTED",
+            "primary" : true,
+            "node" : "sIh5gQcFThCcz3SO6txvvQ",
+            "relocating_node" : null,
+            "shard" : 0,
+            "index" : "blog"
+          }, {
+            "state" : "STARTED",
+            "primary" : false,
+            "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+            "relocating_node" : null,
+            "shard" : 0,
+            "index" : "blog"
+          } ],
+          "3" : [ {
+            "state" : "STARTED",
+            "primary" : false,
+            "node" : "sIh5gQcFThCcz3SO6txvvQ",
+            "relocating_node" : null,
+            "shard" : 3,
+            "index" : "blog"
+          }, {
+            "state" : "STARTED",
+            "primary" : true,
+            "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+            "relocating_node" : null,
+            "shard" : 3,
+            "index" : "blog"
+          } ],
+          "1" : [ {
+            "state" : "STARTED",
+            "primary" : false,
+            "node" : "sIh5gQcFThCcz3SO6txvvQ",
+            "relocating_node" : null,
+            "shard" : 1,
+            "index" : "blog"
+          }, {
+            "state" : "STARTED",
+            "primary" : true,
+            "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+            "relocating_node" : null,
+            "shard" : 1,
+            "index" : "blog"
+          } ],
+          "2" : [ {
+            "state" : "STARTED",
+            "primary" : true,
+            "node" : "sIh5gQcFThCcz3SO6txvvQ",
+            "relocating_node" : null,
+            "shard" : 2,
+            "index" : "blog"
+          }, {
+            "state" : "STARTED",
+            "primary" : false,
+            "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+            "relocating_node" : null,
+            "shard" : 2,
+            "index" : "blog"
+          } ]
+        }
+      }
+    }
+  },
+  "routing_nodes" : {
+    "unassigned" : [ ],
+    "nodes" : {
+      "sIh5gQcFThCcz3SO6txvvQ" : [ {
+        "state" : "STARTED",
+        "primary" : true,
+        "node" : "sIh5gQcFThCcz3SO6txvvQ",
+        "relocating_node" : null,
+        "shard" : 4,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : true,
+        "node" : "sIh5gQcFThCcz3SO6txvvQ",
+        "relocating_node" : null,
+        "shard" : 0,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : false,
+        "node" : "sIh5gQcFThCcz3SO6txvvQ",
+        "relocating_node" : null,
+        "shard" : 3,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : false,
+        "node" : "sIh5gQcFThCcz3SO6txvvQ",
+        "relocating_node" : null,
+        "shard" : 1,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : true,
+        "node" : "sIh5gQcFThCcz3SO6txvvQ",
+        "relocating_node" : null,
+        "shard" : 2,
+        "index" : "blog"
+      } ],
+      "-mq1SRuuQoeEq-3S8SdHqw" : [ {
+        "state" : "STARTED",
+        "primary" : false,
+        "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+        "relocating_node" : null,
+        "shard" : 4,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : false,
+        "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+        "relocating_node" : null,
+        "shard" : 0,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : true,
+        "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+        "relocating_node" : null,
+        "shard" : 3,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : true,
+        "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+        "relocating_node" : null,
+        "shard" : 1,
+        "index" : "blog"
+      }, {
+        "state" : "STARTED",
+        "primary" : false,
+        "node" : "-mq1SRuuQoeEq-3S8SdHqw",
+        "relocating_node" : null,
+        "shard" : 2,
+        "index" : "blog"
+      } ]
+    }
+  },
+  "allocations" : [ ]
+}
+```
 
 ## References
 
@@ -141,3 +425,4 @@ https://www.elastic.co/blog/resiliency-elasticsearch
 https://github.com/elastic/elasticsearch/issues/2488
 http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html
 http://blog.trifork.com/2011/04/01/gimme-all-resources-you-have-i-can-use-them/
+https://github.com/elastic/elasticsearch/issues/10708
