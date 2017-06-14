@@ -45,6 +45,7 @@ http.max_content_length: 100mb
     drwxr-xr-x  3 funky  wheel   102B  6  8 17:23 translog
     ```
 - refresh
+  - apply on segments
   - scheduled periodically(1s)，也可手工 /_refresh
   - 在此触发merge逻辑
   - refresh后，那么在此之前的所有变更就可以搜索了，in-memory buffer的数据是不能搜索的
@@ -53,7 +54,8 @@ http.max_content_length: 100mb
     - 不保证durability，那是由flush保证的
     - in-memory buffer清除
 - flush
-  - 30s by default，会触发commit
+  - apply on translog
+  - 30s/200MB/5000 ops by default，会触发commit
   - Any docs in the in-memory buffer are written to a new segment
   - The buffer is cleared
   - A commit point is written to disk
