@@ -78,6 +78,27 @@ http.max_content_length: 100mb
 - update
   delete, then insert。mysql内部的变长字段update也是这么实现的
 
+### Hard commit
+
+默认30分钟，或者translog size(200MB)，whoever come early
+
+```
+把in-memory buffer内容生成一个新segment，并把buffer清空
+把每个还没有commit point的segment进行fsync
+生成commit point file
+IndexSearcher is opened and all documents are searchable
+translog.empty()
+translog.sequence ++
+
+// 如果机器突然停电，可以完全恢复
+```
+
+### Merge
+
+- Happens in parallel to searching. Searcher is changed to new segment.
+- Deleting a document creates a new document and .del file to keep track that document is deleted
+- 由于一个document可能多次update，在不同的segment可能出现多次delete
+
 ## Query
 
 ![read](https://github.com/funkygao/blogassets/blob/master/img/esread1.jpg?raw=true)
