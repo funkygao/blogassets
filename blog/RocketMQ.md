@@ -147,3 +147,7 @@ Producer Group信息存放在namesvr
 
 - Producer不再是普通的client，它已经变成server(TC)，而且要求不能随便shutdown
 - Producer Group里写redolog的机器死了怎么办
+
+## HA
+
+粒度只控制在Broker，而kafka是在partition上

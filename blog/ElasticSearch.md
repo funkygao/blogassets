@@ -29,6 +29,10 @@ path.data: /path/to/data1,/path/to/data2
 http.max_content_length: 100mb
 ```
 
+### Best Practice
+
+内存，一半给ES，一半给pagecache
+
 ## Indexing
 
 ![write](https://github.com/funkygao/blogassets/blob/master/img/eswrite1.jpg?raw=true)
@@ -45,7 +49,7 @@ http.max_content_length: 100mb
     drwxr-xr-x  3 funky  wheel   102B  6  8 17:23 translog
     ```
 - refresh
-  - apply on segments
+  - on segments
   - scheduled periodically(1s)，也可手工 /_refresh
   - 在此触发merge逻辑
   - refresh后，那么在此之前的所有变更就可以搜索了，in-memory buffer的数据是不能搜索的
@@ -54,7 +58,7 @@ http.max_content_length: 100mb
     - 不保证durability，那是由flush保证的
     - in-memory buffer清除
 - flush
-  - apply on translog
+  - on translog
   - 30s/200MB/5000 ops by default，会触发commit
   - Any docs in the in-memory buffer are written to a new segment
   - The buffer is cleared
@@ -98,6 +102,18 @@ translog.sequence ++
 - Happens in parallel to searching. Searcher is changed to new segment.
 - Deleting a document creates a new document and .del file to keep track that document is deleted
 - 由于一个document可能多次update，在不同的segment可能出现多次delete
+
+### Replication
+
+primary-backup model
+
+master的indexing过程
+```
+validate indexing request
+local indexing
+concurrently dispatch the indexing request to all replicas
+```
+
 
 ## Query
 
@@ -167,6 +183,8 @@ master.reply('internal:discovery/zen/join/validate')
 master.update(ClusterState) and broadcast to all nodes, and wait for minimum_master_nodes ack
 ClusterState change committed and confirmation sent
 ```
+
+discovery.zen.ping.unicast.hosts其实是种子，5个node配2个，也可以获取全局节点信息：知一点即知天下
 
 ### Master fault detection
 
@@ -442,6 +460,13 @@ master负责更改，并广播到机器的每个节点，每个节点本地保�
 }
 ```
 
+## Use Cases
+
+### github
+
+之前用Solr，后来改为elasticsearch，运行在多个集群。
+其中，存储代码的集群26个data node，8 coordinator node，每个data node有2TB SSD，510 shards with 2 replicas
+
 ## References
 
 https://www.elastic.co/blog/resiliency-elasticsearch
@@ -449,3 +474,4 @@ https://github.com/elastic/elasticsearch/issues/2488
 http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html
 http://blog.trifork.com/2011/04/01/gimme-all-resources-you-have-i-can-use-them/
 https://github.com/elastic/elasticsearch/issues/10708
+https://github.com/blog/1397-recent-code-search-outages

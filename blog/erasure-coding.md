@@ -41,10 +41,6 @@ $diff x README.md
 $ # all the same
 ```
 
-### Prod Use Case
-
-一个文件，被等分成17个shards+3个校验块，共计20块，容忍任意3块错误，而成本只增加了3/17=17%
-
 ## Algorithm
 
 文件内容‘ABCDEFGHIJKLMNOP’，4+2
