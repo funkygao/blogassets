@@ -54,3 +54,5 @@ Ext4针对大文件顺序访问的主要优化
 ## Summary
 
 ![ext3 vs ext4](https://github.com/funkygao/blogassets/blob/master/img/ext3-vs-ext4.png?raw=true)
+
+http://www.linux-mag.com/id/7271/
