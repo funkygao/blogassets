@@ -12,9 +12,11 @@ tags: PubSub
 
 负责
 - leadership change of a partition
-  each leader can independently update ISR
+  each partition leader can independently update ISR
 - new topics; deleted topics
 - replica re-assignment
+
+曾经的设计是没有controller，每个broker要决策时都通过zk，加入controller坏处就是要实现controller failover
 
 ```
 class KafkaController {
@@ -79,7 +81,9 @@ zk.watch("/brokers/ids"), BrokerChangeListener会调用ControllerChannelManager.
 
 controller -> broker，这里的圣旨请求有3种，都满足幂等性
 - LeaderAndIsrRequest
+  replicaManager.becomeLeaderOrFollower
 - UpdateMetadataRequest
+  replicaManager.maybeUpdateMetadataCache
 - StopReplicaRequest
   删除topic
 
@@ -98,17 +102,41 @@ partitionStateMachine.triggerOnlinePartitionStateChange()
 
 ### onBrokerFailure
 
-由BrokerChangeListener触发
+找出受影响的状态，并触发partitionStateMachine、replicaStateMachine的状态切换
 
 ### StateMachine
 
 只有controller那台机器的state machine才会启动
 
+terms
+```
+Replica {
+    broker_id int
+    partition Partition // a Replica belongs to a Partition
+    log Log
+    hw, leo long
+    isLeader bool
+}
+
+Partition {
+    topic string
+    partition_id int
+    leader Replica
+    ISR Set[Replica]
+    AR  Set[Replica] // assigned replicas
+    zkVersion long   // for CAS
+}
+```
+
 #### PartitionStateMachine
 
-每个partition的状态，控制partion的leader
+每个partition的状态，负责分配、选举partion的leader
 ```
 class PartitionStateMachine {
+    // - NonExistentPartition
+    // - NewPartition
+    // - OnlinePartition
+    // - OfflinePartition
     partitionState: mutable.Map[TopicAndPartition, PartitionState] = mutable.Map.empty
 
     topicChangeListener   // childChanges("/brokers/topics")
@@ -117,10 +145,11 @@ class PartitionStateMachine {
 }
 ```
 
-- NonExistentPartition
-- NewPartition
-- OnlinePartition
-- OfflinePartition
+- PartitionLeaderSelector.selectLeader
+  - OfflinePartitionLeaderSelector
+  - ReassignedPartitionLeaderSelector
+  - PreferredReplicaPartitionLeaderSelector
+  - ControlledShutdownLeaderSelector
 
 #### ReplicaStateMachine
 
@@ -150,10 +179,6 @@ class ReplicaStateMachine {
 - 维护内存replicaState
 - 必要时通过brokerRequestBatch广播给所有broker
 
-## Misc
-
-ReplicationUtils.updateLeaderAndIsr
-
 ## Failover
 
 ### broker failover
@@ -163,11 +188,26 @@ ReplicationUtils.updateLeaderAndIsr
 {"jmx_port":-1,"timestamp":"1460677527837","host":"10.1.1.1","version":1,"port":9002}
 ```
 
+controller的BrokerChangeListener监视所有broker的存活
 参考 onBrokerStartup， onBrokerFailure
+
+#### leader failover
+
+一个partition的leader broker crash了，controlle选举出新的leader后，该new leader的LEO会成为新的HW
+leader负责维护/propogate HW，以及每个follower的LEO
+
+存在一个partition多Leader脑裂
+```
+partition0 broker(A, B, C)，A是leader
+A GC很久，crontroller认为A死，让B成为leader，写zk ISR znode，正在此时A活了但还没有收到controller发来的RPC，此时A、B都是leader
+如果client1连接A，clientB连接B，他们都发消息?
+A活过来的时候，A认为它的ISR=(A,B,C)，clientA发的消息commit条件是A,B,C都ack by fetch request才可以，但B在promoted to leader后会先stop fetching from previous leader。
+因此，A只有shrink ISR后才可能commit消息，但shrink时它会写zk，通过CAS失败，此时A意识到它已经不是leader
+```
 
 ### controller failover
 
-controller session expire
+controller session expire example
 ```
 broker1，是controller
   在sessionTimeout*2/3=4s内还没有收到response，就会try next zk server
@@ -200,7 +240,12 @@ broker0:
   }
 ```
 
+## Misc
+
+- ReplicationUtils.updateLeaderAndIsr
+
 ## References
 
 https://issues.apache.org/jira/browse/KAFKA-1460
 https://cwiki.apache.org/confluence/display/KAFKA/kafka+Detailed+Replication+Design+V3
+https://cwiki.apache.org/confluence/display/KAFKA/Kafka+Improvement+Proposals

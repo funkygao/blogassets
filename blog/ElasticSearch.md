@@ -227,6 +227,13 @@ master mark the shard as started
 if this is the first shard with a specific id, it is marked as primary
 ```
 
+#### Shrink Index
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html
+并不是resharding，开始时可以创建很多shard(e,g. 30)，用来灌数据，等数据好了，可以shrink到5
+它只是hard link segments，执行时要先把index置为readonly
+场景，例如tsdb，按照月份建索引，过了这个月，就可以shrink了
+
 ### Consensus
 
 zen discovery(unicast/multicast)，存在脑裂问题，没有去解决，而是通过3台专用master机器，优化master逻辑，减少由于no reponse造成的partition可能性
