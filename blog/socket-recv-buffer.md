@@ -23,4 +23,6 @@ ethtool -k eth0 # segment offload makes tcpdump see a packet bigger than MTU
 net.ipv4.tcp_available_congestion_control
 net.ipv4.tcp_congestion_control
 net.ipv4.tcp_moderate_rcvbuf
+
+net.ipv4.tcp_slow_start_after_idle
 ```

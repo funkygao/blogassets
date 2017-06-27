@@ -18,6 +18,11 @@ mkfs – t nilfs2 /dev/sda8
 mount – t nilfs2 /nilfs /dev/sda8
 ```
 
+## Benchmark
+
+![small file](https://github.com/funkygao/blogassets/blob/master/img/smallfile.png?raw=true)
+![large file](https://github.com/funkygao/blogassets/blob/master/img/largefile.png?raw=true)
+
 ## vs Journal File System
 
 JFS保存在日志里的只有metadata，而LFS利用日志记录一切
