@@ -1,5 +1,5 @@
 ---
-title: Linked Esprosso
+title: Linkedin Esprosso
 date: 2017-05-22 08:07:48
 tags: database
 ---

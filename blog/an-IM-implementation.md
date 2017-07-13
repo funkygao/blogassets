@@ -15,22 +15,21 @@ Cons
 - 虽然可以进行多IDC部署，但设计上并没有充分考虑
   目前腾讯其实是所有IDC router 全局同步的，这样各个IDC甚至可以直连本IDC的router模块查询
 - 还没有实现离线消息
-- 实现上对可靠性的处理比较naive，存在多处丢失消息的实现
+- 实现上对可靠性的处理比较naive，存在多处丢失消息的case
 - 配置上静态服务地址绑定
   - 虽然可以通过VIP LB
   - 每台comet需要配置所有logic addrs
   - 每台logic需要配置所有router addrs
   - 每台job需要配置所有comet addrs
-  - job配置里tightly coupled with comet servers
 
 ### 系统组成
 
-- 接入服务器(comet)
+- 接入服务器/前置机(comet)
   负责消息的接收和投递
   client只接触到它，通过websocket/http
 - 业务服务器(logic)
   认证、路由查询、消息kafka持久化
-- session服务器(router)
+- session存储服务器(router)
   保存路由信息表
 - push服务器(job)
   从kafka取消息，通过router里的信息找到对应comet服务器，进行投递

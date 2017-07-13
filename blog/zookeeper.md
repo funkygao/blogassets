@@ -12,6 +12,7 @@ File api without partial R/W
 No rename operation
 
 zab通过TCP+zxid实现事务的totally order
+sequential consistency一致性模型，保证the real execution looks to clients like some sequential execution in which the operations of every client appear in the order they were submitted
 
 ### Implementation
 
@@ -101,6 +102,73 @@ sid     1       2       3       4       5
       setPeerState(LOOKING)
   }
   ```
+
+### 2PC
+
+是个简化的2PC，因为不存在abort/rollback，只有commit
+
+传统2PC里coordinator crash的硬伤，zk是怎么解决的？
+重新选举，recover from txnlog
+
+```
+class LearnerHandler extends Thread {
+    queuedPackets = new LinkedBlockingQueue<QuorumPacket>()
+}
+
+class Leader {
+    func processAck(long zxid) {
+        Proposal p = outstandingProposals.get(zxid)
+        p.ackSet.add(1)
+        if p.ackSet.verifyQuorum() {
+            // 大多数返回ack了
+            outstandingProposals.remove(zxid)
+            commit(zxid) {
+                // 通知all followers
+                QuorumPacket qp = new QuorumPacket(Leader.COMMIT, zxid, null, null)
+                sendPacket(qp) // 异步
+            }
+            inform(p) {
+                // 通知all observers
+            }
+        }
+    }
+
+    func propose(req Request) {
+        Proposal p = new Proposal(req)
+        outstandingProposals.put(zxid, p)
+        sendPacket(p) {
+            for LearnerHandler f = range followers {
+                f.queuePacket(p)
+            }
+        }
+    }
+}
+
+class Follower {
+    func processPacket(QuorumPacket qp) {
+        switch qp.type {
+            case Leader.PROPOSAL:
+                // proposal只是记录txnlog，不改变database
+                FollowerZooKeeperServer.logRequest() {
+                    pendingTxns.add(req)
+                    txnLog.append(req)
+                }
+
+            case Leader.COMMIT:
+                FollowerZooKeeperServer.commit(qp.zxid) {
+                    commitProcessor.commit(pendingTxns.remove()) {
+                        committedRequests.add(req) {
+                            FinalRequestProcessor.processRequest(req) {
+                                ZooKeeperServer.processTxn -> ZKDatabase().processTxn
+                                根据req.type来创建response，并发送
+                            }
+                        }
+                    }
+                }
+        }
+    }
+}
+```
 
 ### Constraints
 

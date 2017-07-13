@@ -19,7 +19,16 @@ Designed for optimal data retrieval performance, not data storage.
 
 RDBMS, LMDB, MongoDB
 
+充分利用了read ahead技术
+
 ![btree throughput](https://github.com/funkygao/blogassets/blob/master/img/btree.png?raw=true)
+
+## LSM Hash Table
+
+bitcask
+
+不支持range，所有index在内存的hash table里
+算是一个简化版的LSM-Tree
 
 ## LSM-Tree
 
@@ -28,3 +37,4 @@ RDBMS, LMDB, MongoDB
 ## Fractal-Tree
 
 与B-Tree类似，但通过buffer changes/data compression大大降低了disk random IO
+http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.76.762&rep=rep1&type=pdf
