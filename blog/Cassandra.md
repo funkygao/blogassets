@@ -7,9 +7,11 @@ tags: storage
 ## Cassandra
 
 Cassandra 项目诞生于 Facebook，后来团队有人跳到 Amazon 做了另外一个 NoSQL 数据库 DynamoDB。
+最开始由两个facebook的员工最开始开发出来的，其中一个还直接参与了Amazon的Dynamo的开发。
 
 Dynamo论文发表于2007年，用于shopping cart
 Cassandra在2008年被facebook开源，用于inbox search
+Uber现在有全球最大的Cassandra data center
 
 ### Features
 
@@ -52,3 +54,6 @@ http://www.scylladb.com/
 http://www.seastar-project.org/
 https://www.reddit.com/r/programming/comments/3lzz56/scylladb_cassandra_rewritten_in_c_claims_to_be_up/
 https://news.ycombinator.com/item?id=10262719
+
+Dynamo: A flawed architecture
+http://jsensarma.com/blog/?p=55

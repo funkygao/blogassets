@@ -8,7 +8,6 @@ tags: 一致性
 
 Log entry = (Term, Index, Command)
 in RDBMS, Log=WAL/redo log, FSM=records
-选主过程服务不可用
 
 ### Components
 
@@ -262,35 +261,9 @@ electSelf
 中间，可能会收到RPC，也可能会SetPeers
 ```
 
-### runFollower
-
-```
-
-```
-
-### runLeader
-
-
 ## Configuration Change
 
-采用2PC方法:  C_old→C_old+new→C_new
-
-```
-phase1
-client requests the leader to transition from C_old to C_new
-The leader then issues an AppendEntry RPC to add a special entry to the log containing the configuration C_old+new
-C_new的peers，需要启动replication
-majority(Cold+Cnew)复制后，进入phase2
-
-phase2
-C_new
-```
-
-每个服务器独立的创建快照，只包括已经被提交的日志。主要的工作包括将状态机的状态写入到快照中。Raft 也包含一些少量的元数据到快照中：最后被包含索引指的是被快照取代的最后的条目在日志中的索引值（状态机最后应用的日志），最后被包含的任期指的是该条目的任期号。保留这些数据是为了支持快照前的第一个条目的附加日志请求时的一致性检查，因为这个条目需要最后的索引值和任期号。为了支持集群成员更新（第 6 节），***快照中也将最后的一次配置作为最后一个条目存下来***。一旦服务器完成一次快照，他就可以删除最后索引位置之前的所有日志和快照了。
-尽管通常服务器都是独立的创建快照，但是领导人必须偶尔的发送快照给一些落后的跟随者。这通常发生在当领导人已经丢弃了下一条需要发送给跟随者的日志条目的时候。幸运的是这种情况不是常规操作：一个与领导人保持同步的跟随者通常都会有这个条目。然而一个运行非常缓慢的跟随者或者新加入集群的服务器（第 6 节）将不会有这个条目。这时让这个跟随者更新到最新的状态的方式就是通过网络把快照发送给他们。
-
-
-C(old+new) C(new)
+采用2PC方法:  C_old -> C_old+new -> C_new
 
 http://zookeeper.apache.org/doc/trunk/zookeeperReconfig.html
 zookeeper 3.5.0开始，也有了动态修改cluster的功能

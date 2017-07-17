@@ -83,3 +83,5 @@ update, insert, delete, select ... for update, select ... lock in share modeéƒ½ä
 ## References
 
 https://dev.mysql.com/doc/refman/5.7/en/innodb-locks-set.html
+https://blog.jcole.us/innodb/
+http://jimgray.azurewebsites.net/WICS_99_TP/
