@@ -6,6 +6,7 @@ tags: storage
 
 A Log-Structured Hash Table for KV storage
 Riak默认采用的存储引擎就是bitcask，在开发bitcask的时候，LevelDB还没有开放出来
+刚听到的消息，Riak的公司basho，已经离解散不远了，CTO已经离职，公司好像只有1、2人了
 
 ## Data
 

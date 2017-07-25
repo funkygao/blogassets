@@ -13,12 +13,7 @@ Borg(2015)
 微软在bing项目上的投入，使得微软掌握了大规模data center的建设管理能力，掌握了A/B testing平台，学会了大规模数据分析能力，其中一些成为了Azure的基础，它使得微软顺利从一家软件公司过渡到了云计算公司。
 微软内部支撑大数据分析的平台Cosmos是狠狠的抄袭了Google的File system却很大程度上摒弃了MapReduce这个框架
 所谓MapReduce的意思是任何的事情只要都严格遵循Map Shuffle Reduce三个阶段就好。其中Shuffle是系统自己提供的而Map和Reduce则用户需要写代码。Map是一个per record的操作。任何两个record之间都相互独立。Reduce是个per key的操作，相同key的所有record都在一起被同时操作，不同的key在不同的group下面，可以独立运行
-从做数据库的人的角度来看这无非是一个select一个groupby
-MapReduce: A major step backwards，Jeff Dean在 ACM of communication 上面的反驳
-http://db.cs.berkeley.edu/cs286/papers/backwards-vertica2008.pdf
-- 是DBMS的汇编语言
-- 没有decouple schema
-- use brute force instead of index
+Map是分类(categorize)操作，Reduce是aggregate
 
 To draw an analogy to SQL, map is like the group-by clause of an aggregate query. Reduce is analogous to the aggregate function (e.g., average) that is computed over all the rows with the same group-by attribute.
 

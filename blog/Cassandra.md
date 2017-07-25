@@ -55,5 +55,3 @@ http://www.seastar-project.org/
 https://www.reddit.com/r/programming/comments/3lzz56/scylladb_cassandra_rewritten_in_c_claims_to_be_up/
 https://news.ycombinator.com/item?id=10262719
 
-Dynamo: A flawed architecture
-http://jsensarma.com/blog/?p=55

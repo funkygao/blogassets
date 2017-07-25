@@ -20,10 +20,11 @@ OSDI、SOSP，这两个是OS最好的会议，每两年开一次，轮流开
 
 - SOSP: The ACM Symposium on Operating Systems Principles
   由ACM下属的SIGOPS(special interest group on operation system)于1967年创办，每届收录20篇
-  GFS就是发表在SOSP 2003的
+  GFS就是发表在SOSP 2003的, Dynamo是SOSP 2007
 - OSDI: USENIX Symposium on Operating Systems Design and Implementation
   USENIX是一个于1975年成立的Advanced Computing Systems Association
   OSDI是USENIX 1994创办的，每届会议举行3天，每届收录27篇文章，每个小方向3篇
+  MapReduce是发表在OSDI 2004的
 
 ### Architecture
 
