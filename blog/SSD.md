@@ -16,6 +16,8 @@ Physical unit of flash memory
 - Erase before re-write
 - Sequential write within a block
 
+Cost: 17-32x more expensive per GB than disk
+
 ![ssd](https://github.com/funkygao/blogassets/blob/master/img/ssd.png?raw=true)
 
 ## Optimal I/O for SSD
