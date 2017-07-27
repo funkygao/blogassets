@@ -1,10 +1,19 @@
 ---
 title: Ceph Internals
 date: 2017-07-18 15:27:20
-tags:
+tags: storage
 ---
 
 ## RADOS
+
+### Key ideas
+
+![components](https://github.com/funkygao/blogassets/blob/master/img/ceph.png?raw=true)
+
+- 把传统文件系统架构分隔成client component and storage component
+  client负责更上层的抽象(file, block, object)，storage负责底层object, disk
+- seperation of data and metadata
+  各管各的
 
 ### Object
 
@@ -41,6 +50,7 @@ pg = obj_hash & (num_pg-1) // num_pg是2整数幂，例如codis里1024
                            // num_pg如果变化，会引起大量的数据迁移
 osds_for_pg = crush(pg)    // list of osds，此处是唯一需要全局cluster map的地方
                            // 其他的，都是算出来的
+                           // osds_for_pg is ordered，len(osds_for_pg)=replicate factor
 primary = osds_for_pg[0]
 replicas = osds_for_pg[1:]
 ```
@@ -48,10 +58,12 @@ replicas = osds_for_pg[1:]
 
 ### crush
 
-目标
+一个hash算法，目标
 - 数据均匀的分布到集群中
 - 需要考虑各个OSD权重的不同（根据读写性能的差异，磁盘的容量的大小差异等设置不同的权重）
 - 当有OSD损坏需要数据迁移时，数据的迁移量尽可能的少
+
+有点像一致性哈希：failure, addition, removal of nodes result in near-minimal object migration
 
 ![crush](https://github.com/funkygao/blogassets/blob/master/img/ceph-crush.png?raw=true)
 
@@ -80,6 +92,8 @@ $
 // up [0,6,3]: osd up set contains osd.0, osd.6, osd.3
 ```
 
+同一个PG内的osd通过heartbeat相互检查对方状态，大部分情况下不需要mon参与，减少了mon负担
+
 ### mon
 
 相当于Ceph的zookeeper
@@ -98,11 +112,28 @@ MON跟踪cluster状态：OSD, PG, CRUSH maps
 ![read write](https://github.com/funkygao/blogassets/blob/master/img/ceph-rw1.jpg?raw=true)
 其中replicas在复制到buffer时就ack，如果某个replica复制时失败，进入degrade状态
 
+### 2PC Write
+
+![write 2PC](https://github.com/funkygao/blogassets/blob/master/img/ceph-2pc.png?raw=true)
+
+```
+phase1: client从primay接收ack
+此时，数据已经replicate到每个replica的内存
+
+phase2: client从primary接收commit
+此时，数据已经replicate到每个replica的磁盘
+client才把本地的write buffer cache清除
+```
+
 ### scrub机制
 
 read verify
 
 ## Questions
+
+### consistency?
+
+strongly consistent
 
 ### Can Ceph replace facebook Haystack?
 
@@ -156,3 +187,5 @@ http://ceph.com/papers/weil-crush-sc06.pdf
 http://ceph.com/papers/weil-rados-pdsw07.pdf
 http://ceph.com/papers/weil-ceph-osdi06.pdf
 http://www.xsky.com/tec/ceph72hours/
+https://blogs.rdoproject.org/6427/ceph-and-swift-why-we-are-not-fighting
+https://users.soe.ucsc.edu/~elm/Papers/sc04.pdf

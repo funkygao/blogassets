@@ -1,5 +1,5 @@
 ---
-title: replication
+title: replication models
 date: 2017-07-19 19:12:26
 tags: storage
 ---
