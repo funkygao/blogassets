@@ -1,5 +1,5 @@
 ---
-title: GFS evolution
+title: GFS evolution and BigTable
 date: 2017-07-25 14:39:34
 tags: storage
 ---
@@ -7,7 +7,7 @@ tags: storage
 ## GFS
 
 GFS，2001年开发出来，3个人，1年，论文发表于2003
-BigTable，2003年开发出来
+BigTable，2003年开发出来，论文发表于2006
 
 ### master
 
@@ -121,7 +121,7 @@ MapReduce时，需要把代码发布到GFS，很可能小于64MB，即只有1个
 
 master通过redo log sync replication来提高可靠性，但没有election过程，都是完全手工进行failover
 
-我猜，chubby当时还没有启动
+我猜，chubby当时还没有启动，chubby论文发表于2006
 
 #### master为什么不持久化chunk location?
 
@@ -244,7 +244,7 @@ master会把这个lock，以便新的client不能write(等恢复后再unlock)
 #### 解决办法
 
 BigTable是无法忍受那么高的延时的，它的transaction log是最大的瓶颈，存储在GFS：
-2个log，一个慢，就切换到另外一个
+2个log，一个慢，就切换到另外一个，这2个log任意时刻只有1个active，并且log entry里有sequence号，以便replay时防重
 
 Gmail是多机房部署的，一个卡了，切到另外机房
 
@@ -272,6 +272,67 @@ In other words, it was built specifically for use with the new Caffeine search-i
 - client driven replication
 - metadata space has enabled availability analysis
 
+## BigTable
+
+![(row, column, time) -> value](https://github.com/funkygao/blogassets/blob/master/img/bigtable.jpg?raw=true)
+
+在有了GFS和Chubby后，Google就可以在上面搭建BigTable了
+但BigTable论文对很多细节都没有提到：SSTable的实现、tabletserver的HA，B+数的metadata table算法
+
+为了管理巨大的table，按照row key做sharding，每个shard称为tablet(100-200MB，再大就split)，每台机器存储100-1000个tablet
+row key是一级索引，column是二级索引，版本号(timestamp)是三级索引
+
+![redo log和SSTable都存放在GFS的Chubby管理元信息的分布式LSM Tree](https://github.com/funkygao/blogassets/blob/master/img/tablet-write.png?raw=true)
+
+tabletserver没有任何的持久化数据，只是操作memtable，真正的数据存放在哪里只有GFS知道，那为什么需要master在chubby上分配tablet给tabletserver?
+因为memtable是有状态的: level0
+
+tabletserver的HA?
+通过chubby ephemeral node，死了master会让别的server接管，通过GFS上的redo log恢复memtable
+
+### Highlights
+
+#### redo log合并
+
+一台机器一个redo log，而不是一个tablet一个redo log(每个机器有100-1000个tablet)，否则GFS受不了
+group commit
+
+带来的问题：恢复时麻烦了
+如果一天机器crash了，它上面的tablets会被master分配到很多其他的tabletserver上
+例如，分配到了100台新tabletserver，他们都会read redo log and filter，这样redo log被读了100次
+解决办法：利用类似MapReduce机制，在recovery之前先给redo log排序 <table, rowkey, log sequence number>
+
+#### 加速tablet迁移
+
+```
+sourceTablet.miniorCompaction() // 把memtable里内容dump到GFS的SSTable
+sourceTablet.stopServe()
+sourceTablet.miniorCompaction() // 把in-flight commit log对应的操作也持久化到GFS
+                                // 这样targetTablet就不需要从commit log recover了
+master.doSwitch()
+```
+
+#### SSTable由多个64KB的block组成
+
+压缩以block为单位，虽然相比在整个SSTable上压缩比小(浪费空间)，但对于随机读，可以只uncompress block而非整个SSTable
+
+### 经验和教训
+
+遇到了新的问题
+- 发现了Chubby的bug
+- network corruption
+  通过给RPC增加checksum解决
+- delay adding features until clear how it will be used
+  刚开始想给API增加一个通用的事务机制，后来发现大部分人只需要单行事务
+- 不仅监控server，也监控client
+  扩展了RPC，采样detailed trace of important actions
+- 设计和实现都要简单、明了
+  BigTable代码10万行
+  tabletserver的membership协议的设计，最初：master给tabletserver发lease
+  结果：在网络出问题时大大降低了可用性(master无法reach tabletserver就只能等expire)
+  改进：实现了更复杂的协议，也利用了Chubby里非常少见的特性
+  结果：大量时间在调试edge case，很多时间在调试Chubby的代码
+  最终：回到简单的设计，只依赖Chubby，而且只使用它通用的特性
 
 ## References
 
