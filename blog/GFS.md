@@ -244,11 +244,11 @@ master会把这个lock，以便新的client不能write(等恢复后再unlock)
 #### 解决办法
 
 BigTable是无法忍受那么高的延时的，它的transaction log是最大的瓶颈，存储在GFS：
-2个log，一个慢，就切换到另外一个，这2个log任意时刻只有1个active，并且log entry里有sequence号，以便replay时防重
+2个log(secondary log)，一个慢，就切换到另外一个，这2个log任意时刻只有1个active，并且log entry里有sequence号，以便replay时防重
+google使用这个request redundancy or timeout方法很广泛，为了解决search long tail latency，一样思路
 
 Gmail是多机房部署的，一个卡了，切到另外机房
 
-google使用这个request redundancy or timeout方法很广泛，为了解决search long tail latency，一样思路
 
 ### consistency
 
@@ -276,7 +276,7 @@ In other words, it was built specifically for use with the new Caffeine search-i
 
 ![(row, column, time) -> value](https://github.com/funkygao/blogassets/blob/master/img/bigtable.jpg?raw=true)
 
-在有了GFS和Chubby后，Google就可以在上面搭建BigTable了
+在有了GFS和Chubby后，Google就可以在上面搭建BigTable了，一个GFS的索引服务
 但BigTable论文对很多细节都没有提到：SSTable的实现、tabletserver的HA，B+数的metadata table算法
 
 为了管理巨大的table，按照row key做sharding，每个shard称为tablet(100-200MB，再大就split)，每台机器存储100-1000个tablet
@@ -289,6 +289,22 @@ tabletserver没有任何的持久化数据，只是操作memtable，真正的数
 
 tabletserver的HA?
 通过chubby ephemeral node，死了master会让别的server接管，通过GFS上的redo log恢复memtable
+为了保证强一致性系统，同一时刻同一份数据只能一台tabletserver服务，tabletserver对每个tablet是没有备份的
+当它crash，由于只需要排序很少的操作日志并且加载服务的tablet的索引，宕机恢复可以做到一分钟以内；在此期间，一部分rowkey不可用
+
+split and migration?
+在没有crash情况下，只需要修改metadata和从sstable加载索引数据，效率很高
+
+### 与GFS的对应
+
+- commit log
+  每台机器一个commit log文件，与GFS File一一对应
+- sstable
+  HBase中Column Family的名称会被作为文件系统中的目录名称，每个CF存储成一个HDFS的HFile
+  据google工作过的人说：Column Families are stored in their own SSTable，应该是这样
+  sstable对应一个GFS File
+  sstable block=64KB，它与GFS的block相同
+  sstable block为了压缩和索引(binary search)，GFS block为了checksum
 
 ### Highlights
 
@@ -327,15 +343,20 @@ master.doSwitch()
 - 不仅监控server，也监控client
   扩展了RPC，采样detailed trace of important actions
 - 设计和实现都要简单、明了
-  BigTable代码10万行
+  BigTable代码10万行C++
   tabletserver的membership协议的设计，最初：master给tabletserver发lease
   结果：在网络出问题时大大降低了可用性(master无法reach tabletserver就只能等expire)
   改进：实现了更复杂的协议，也利用了Chubby里非常少见的特性
   结果：大量时间在调试edge case，很多时间在调试Chubby的代码
   最终：回到简单的设计，只依赖Chubby，而且只使用它通用的特性
 
+### Questions
+
+按照rowkey来shard，那么可能造成hotspot问题，client端比较难控制
+
 ## References
 
 http://queue.acm.org/detail.cfm?id=1594206
 http://google-file-system.wikispaces.asu.edu/
 http://static.usenix.org/publications/login/2010-08/openpdfs/maltzahn.pdf
+https://stephenholiday.com/notes/bigtable/
