@@ -63,6 +63,11 @@ reduce阶段，每个reduce都会到1000个map机器上PULL file
 ```
 
 而并行数据库，采用的是PUSH模型。而MapReduce要修改成PUSH模型是比较困难的，因为它的HA非常依赖它目前的PULL模型
+MapReduce uses a pull model for moving data between Mappers and Reducers
+
+(Jeff: 
+承认了这个问题的存在。但google在实现的时候，通过batching, sorting, grouping of intermediate data and smart scheduling of reads缓解了这个问题
+只所以使用PULL MODEL，是考虑到容错。大部分MR Job都会遇到几次错误，除了硬件、软件错误外，Google内部的调度系统是抢占式的：它可能会把M/R kill以疼出资源给更高优先级的进程，如果PUSH，那么就需要重新执行所有的Map任务)
 
 ### MapReduce并不新颖
 
@@ -113,3 +118,14 @@ Teradata使用MapReduce同样的技术卖他们的商业产品已经20多年了
 
 ## Jeff Dean在ACM of communication上面的回馈
 
+http://cs.smith.edu/dftwiki/images/3/3c/MapReduceFlexibleDataProcessingTool.pdf
+
+- MR可以通过实现Reader/Writer来支持更多的存储系统
+  而并行数据库，必须要把数据load进系统后才能开始计算
+- MR可以使用index，它并不一定总是full table scan
+- MR可以完成比SQL更复杂的查询
+  UDF可以帮助DBMS，但目前商业产品上的实现要么缺功能，要么buggy
+
+## References
+
+http://database.cs.brown.edu/projects/mapreduce-vs-dbms/

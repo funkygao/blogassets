@@ -7,7 +7,7 @@ tags: storage
 ## GFS
 
 GFS，2001年开发出来，3个人，1年，论文发表于2003
-BigTable，2003年开发出来，论文发表于2006
+BigTable，2004年开发出来，论文发表于2006
 
 ### master
 
@@ -354,6 +354,16 @@ master.doSwitch()
 
 按照rowkey来shard，那么可能造成hotspot问题，client端比较难控制
 
+## 2009 BigTable回顾
+
+部署了500+个BigTable集群，最大的机器：70+ PB data; sustained: 10M ops/sec; 30+ GB/s I/O
+
+- Lots of work on scaling
+- Improved performance isolation
+- Improved protection against corruption
+- Configure on per-table
+- 异地机房复制: 增加了最终一致性模型
+- Coprocessor
 ## References
 
 http://queue.acm.org/detail.cfm?id=1594206
