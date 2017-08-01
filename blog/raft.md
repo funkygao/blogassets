@@ -354,10 +354,14 @@ max outstanding AppendEntries RPC calls = 128
 
 ## Paxos
 
-
 ![concensus overview](https://github.com/funkygao/blogassets/blob/master/img/consensusoverview.png?raw=true)
 
 server replication (SR), log replication (LR), synchronisation service (SS), barrier orchestration (BO), service discovery (SD), leader election (LE), metadata management (MM), and Message Queues (Q).
+
+## CAP
+
+证明：
+在一个network partition的2个节点，现在有两个client分别向他们发送冲突的请求，如果要C，那么必然有一个节点要拒绝：牺牲A；如果要A，必然牺牲C
 
 ## References
 
@@ -365,7 +369,7 @@ server replication (SR), log replication (LR), synchronisation service (SS), bar
 1988 Oki and Liskov’s Viewstamped Repication 
 1998 Lamport’s original Paxos paper "Part-Time Parliment" 
 2000 Brewer proposes CAP conjecture during Keynote at PODC 
-2002 Proof of CAP by Gilbert and Lynch 
+2002 Proof of CAP by Gilbert and Lynch(CAP 2年后才被正式证明)
 2005 Lamport’s Technical Report on Generalized Consensus & Paxos 
 2013 Raft Consensus Paper first available online
 

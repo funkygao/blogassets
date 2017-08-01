@@ -30,3 +30,12 @@ tags: 一致性
 - worse case
   coordinator本身也是participant
 
+## 3PC
+
+在propose和commit这2个phase中间，加了个prepare to commit
+- 如果coordinator在prepare to commit或者proposal阶段crash
+  trx aborted
+- 如果coordinator在commit阶段crash
+  nodes will timeout waiting for the commit phase and commit the trx
+
+
