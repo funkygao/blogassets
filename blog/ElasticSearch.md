@@ -467,6 +467,14 @@ master负责更改，并广播到机器的每个节点，每个节点本地保�
 }
 ```
 
+## Internal Data Structures and Algorithms
+
+### Roaring bitmap
+
+### T-Digest Percentiles
+
+### HDRHistogram Percentiles
+
 ## Use Cases
 
 ### github
@@ -482,3 +490,4 @@ http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html
 http://blog.trifork.com/2011/04/01/gimme-all-resources-you-have-i-can-use-them/
 https://github.com/elastic/elasticsearch/issues/10708
 https://github.com/blog/1397-recent-code-search-outages
+https://speakerd.s3.amazonaws.com/presentations/d7c3effadc8146a7af6229d3b5640162/friday-colin-g-zach-t-all-about-es-algorithms-and-data-structiures-stage-c.pdf
