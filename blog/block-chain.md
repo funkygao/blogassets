@@ -4,31 +4,6 @@ date: 2017-09-11 08:25:49
 tags: algorithm
 ---
 
-```
-type Block struct {
-    // header
-    index          int
-    timestamp      [4]byte // used for difficulty calculation
-    prevHash, hash [32]byte
-    merkleTreeRoot [32]byte
-    nonce          [4]byte // sha256(hash+nonce)<T
-    signature      [] byte
-
-    // body
-    transactions   []byte
-}
-
-type BlockChain []Block
-type Ledger BlockChain
-
-node.run() {
-    connectToP2PThenDownloadBlockchain()
-    go node.listenForTransactions()
-    go node.listenForBlocks()
-    go node.listenForNodesDiscovery()
-}
-```
-
 ## Overview
 
 目前公开的bitcoin只能支持每秒7笔的吞吐量，一般对于大额交易来说，安全的交易确认时间为1小时(6个block生成时间)
@@ -149,6 +124,8 @@ node1发现block 5-7还没有同步过来，先进行同步，然后再把block8
 通过PoW，每次生成block时进行一次leader选举，由leader生产new block，猜数成功的node自认为成为了leader，然后通过P2P广播(gossip)
 由于猜数比较困难，多节点同时成为leader并且在接收到其他leader广播前猜成功的可能性非常小，但还是存在可能性，即多主，这就需要解决冲突
 
+miner一旦recv a new block，就意识到在这个block的race上自己输了，它会立即把一些pending transactions和这个收到的block作为prev hash来构建下一个block
+
 ### Conflict Resolve
 
 采用longest chain rule，发现冲突时，block chain fork branch，在发现longest chain时，把short chain删除：但可能会造成confirmed transaction lost
@@ -172,6 +149,9 @@ Alice pays Bob，Alice会把这个交易通过private key进行签名，广播�
 
 ![signature](https://github.com/funkygao/blogassets/blob/master/img/digital_signature.png?raw=true)
 
+比特币的所有权是通过数字密钥、比特币地址、数字签名来确立的
+密钥实现了去中心化的信任，所有权认证
+
 创建交易时，payer利用自己的private key给transaction签名，同时把自己的public key存放在消息里：(payer_public_key, signature)
 miners通过这个信息，就可以verify这个transaction确实是payer发出的
 同时，transaction里也包含了payee的public key信息，只有payee利用他的private key才能解开
@@ -181,6 +161,11 @@ key pair，非对称加密的特性：
   如果能通过(payer_public_key, signature)能解密，就证明了payer的身份
 - 用公钥加密的内容，只能用私钥解密
   只有payee才能用他的私钥解密交易
+  每个交易必须有效的签名才能被存入ledger
+  当payee花销这笔钱时，他必须给这个交易签名，由于这笔钱已经在ledger里记录了payee的公钥，只有payee才能签名
+- 公钥用于收钱，私钥用于花钱时生成数字签名
+- 通过私钥能计算出公钥，但反过来不行
+  只要私钥不丢，公钥丢了也没关系
 
 如果我知道Alice的public key(X)，然后创建一笔交易：X支付给me 1BTC，系统是怎么知道有诈的?
 首先我不知道X对应的私钥，只能拿我的私钥对交易加签名，miner通过X和signature就能验证：invalid signature
