@@ -235,6 +235,13 @@ Bitcoin address是由34个alphanumerical组成的字符串，但排除了O/T/l/0
 如果本来我想给A钱，却输入时写成了B的address，那么：
 Bitcoin transactions are not reversible. Sending to the wrong person cannot be undone.
 
+### Block timestamp如果做假怎么办？
+
+A timestamp is accepted as valid if it is greater than the median timestamp of previous 11 blocks, and less than the network-adjusted time + 2 hours. 
+"Network-adjusted time" is the median of the timestamps returned by all nodes connected to you.
+
+Whenever a node connects to another node, it gets a UTC timestamp from it, and stores its offset from node-local UTC. The network-adjusted time is then the node-local UTC plus the median offset from all connected nodes. Network time is never adjusted more than 70 minutes from local system time, however.
+
 ### 如果真有人控制了51%计算能力，会发生什么？
 
 attacker只能把他刚花的钱payment取消掉，即double spent
