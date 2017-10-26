@@ -13,6 +13,8 @@ in RDBMS, Log=WAL/redo log, FSM=records
 
 - FSM
 - LogStore
+  - LastIndex
+  - FirstIndex
 - StableStore
   - CurrentTerm
   - LastVoteTerm
@@ -60,6 +62,11 @@ msgpack serializer
 Leader's log is 'the truth'
 
 ![2 phase commit](https://github.com/funkygao/blogassets/blob/master/img/raft2pc.png?raw=true)
+
+2.1是第一次AppendEntries，3.1后Leader apply to local FSM并update commit index，就可以向client返回了
+4.2是下一次AppendEntries，leader通知followers最新的commit index，followers才会apply to FSM
+
+When the Commit Index is updated, the node will pass all commands between the new and old Commit Index to the state machine.
 
 phase2的作用：
 uncommitted log是可能回滚的
@@ -378,3 +385,4 @@ http://raftuserstudy.s3-website-us-west-1.amazonaws.com/study/raft.pptx
 
 http://www.read.seas.harvard.edu/~kohler/class/08w-dsi/chandra07paxos.pdf
 https://www.cse.buffalo.edu//~demirbas/publications/cloudConsensus.pdf
+http://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-857.pdf
