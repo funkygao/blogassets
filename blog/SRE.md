@@ -1,5 +1,5 @@
 ---
-title: 可靠性金字塔
+title: 可靠性金字塔 SRE
 date: 2017-05-18 13:55:21
 tags: architecture
 ---
