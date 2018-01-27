@@ -38,3 +38,29 @@ tags: [algorithm, architecture]
 ```
 
 利用二部图把图切分，把零散查询归并为少数集中的查询
+
+## M$ Cloud Design Pattern
+
+- cache-aside
+- ciruit breaker
+- compensating transation
+- competing consumers
+- CQRS
+- event sourcing
+- external configuration store
+- federated identity
+- gatekeeper(gateway)
+- health endpoint monitoring
+- index table
+- lead election
+- materialized view
+- pipes and filters
+- priority queue
+- queue-based load leveling
+- retry
+- runtime reconfiguration
+- scheduler agent supervisor
+- sharding
+- static content hosting
+- throttling
+- valet key
